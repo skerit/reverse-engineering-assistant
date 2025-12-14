@@ -35,6 +35,7 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
+import reva.util.VtableUtil;
 
 /**
  * Tool provider for vtable (virtual function table) analysis.
@@ -50,10 +51,6 @@ public class VtableToolProvider extends AbstractToolProvider {
     private static final int MAX_SLOT_SEARCH_LIMIT = 1000;
     private static final int MAX_ENTRIES_LIMIT = 1000;
     private static final int MAX_RESULTS_LIMIT = 10000;
-
-    // Vtable detection heuristics
-    private static final int VTABLE_PROBE_ENTRIES = 5;      // Number of entries to check when probing for vtable
-    private static final int MIN_VTABLE_FUNCTION_POINTERS = 2;  // Minimum function pointers to consider it a vtable
 
     // Patterns for extracting offsets from operand representations (x86/x64 instruction formats)
     // Matches: [RAX + 0x20], [RBX+0x10], [ECX + 0x8]
@@ -275,8 +272,8 @@ public class VtableToolProvider extends AbstractToolProvider {
             // Try to read the actual pointer value and resolve the function
             try {
                 Address fieldAddr = vtableAddr.add(component.getOffset());
-                long pointerValue = readPointer(memory, fieldAddr, pointerSize);
-                Address targetAddr = toAddress(program, pointerValue);
+                long pointerValue = VtableUtil.readPointer(memory, fieldAddr, pointerSize);
+                Address targetAddr = VtableUtil.toAddress(program, pointerValue);
 
                 entry.put("address", AddressUtil.formatAddress(targetAddr));
 
@@ -322,8 +319,8 @@ public class VtableToolProvider extends AbstractToolProvider {
 
         for (int slot = 0; slot < maxEntries; slot++) {
             try {
-                long pointerValue = readPointer(memory, current, pointerSize);
-                Address targetAddr = toAddress(program, pointerValue);
+                long pointerValue = VtableUtil.readPointer(memory, current, pointerSize);
+                Address targetAddr = VtableUtil.toAddress(program, pointerValue);
 
                 Function func = funcMgr.getFunctionAt(targetAddr);
 
@@ -533,7 +530,7 @@ public class VtableToolProvider extends AbstractToolProvider {
             }
 
             // Verify this looks like a vtable
-            if (isLikelyVtable(program, vtableStart)) {
+            if (VtableUtil.isLikelyVtable(program, vtableStart)) {
                 // Calculate offset with overflow check
                 long offset = (long) slotIndex * pointerSize;
                 if (offset > Integer.MAX_VALUE) {
@@ -569,8 +566,8 @@ public class VtableToolProvider extends AbstractToolProvider {
             }
 
             try {
-                long pointerValue = readPointer(memory, prev, pointerSize);
-                Address targetAddr = toAddress(program, pointerValue);
+                long pointerValue = VtableUtil.readPointer(memory, prev, pointerSize);
+                Address targetAddr = VtableUtil.toAddress(program, pointerValue);
 
                 // Check if previous entry points to a function
                 if (funcMgr.getFunctionAt(targetAddr) == null) {
@@ -583,8 +580,8 @@ public class VtableToolProvider extends AbstractToolProvider {
                         return current;
                     }
                     try {
-                        long prevPrevValue = readPointer(memory, prevPrev, pointerSize);
-                        Address prevPrevTarget = toAddress(program, prevPrevValue);
+                        long prevPrevValue = VtableUtil.readPointer(memory, prevPrev, pointerSize);
+                        Address prevPrevTarget = VtableUtil.toAddress(program, prevPrevValue);
                         if (funcMgr.getFunctionAt(prevPrevTarget) == null) {
                             // Two non-functions in a row, current is likely the start
                             return current;
@@ -604,33 +601,6 @@ public class VtableToolProvider extends AbstractToolProvider {
     }
 
     /**
-     * Determine if an address likely points to a vtable by checking for consecutive function pointers.
-     */
-    private boolean isLikelyVtable(Program program, Address addr) {
-        int pointerSize = program.getDefaultPointerSize();
-        Memory memory = program.getMemory();
-        FunctionManager funcMgr = program.getFunctionManager();
-
-        int functionPointers = 0;
-
-        for (int i = 0; i < VTABLE_PROBE_ENTRIES; i++) {
-            try {
-                Address checkAddr = addr.add(i * pointerSize);
-                long pointerValue = readPointer(memory, checkAddr, pointerSize);
-                Address targetAddr = toAddress(program, pointerValue);
-
-                if (funcMgr.getFunctionAt(targetAddr) != null) {
-                    functionPointers++;
-                }
-            } catch (MemoryAccessException | ghidra.program.model.address.AddressOutOfBoundsException e) {
-                break;
-            }
-        }
-
-        return functionPointers >= MIN_VTABLE_FUNCTION_POINTERS;
-    }
-
-    /**
      * Find the slot index of a function within a vtable.
      * @return The slot index, or -1 if not found
      */
@@ -643,21 +613,21 @@ public class VtableToolProvider extends AbstractToolProvider {
         for (int slot = 0; slot < MAX_SLOT_SEARCH_LIMIT; slot++) {
             monitor.checkCancelled();
             try {
-                long pointerValue = readPointer(memory, current, pointerSize);
+                long pointerValue = VtableUtil.readPointer(memory, current, pointerSize);
 
                 if (pointerValue == functionAddr.getOffset()) {
                     return slot;
                 }
 
                 // Check if still in vtable
-                Address targetAddr = toAddress(program, pointerValue);
+                Address targetAddr = VtableUtil.toAddress(program, pointerValue);
                 if (program.getFunctionManager().getFunctionAt(targetAddr) == null) {
                     // Allow one non-function (RTTI), but stop after that if still no match
                     if (slot > 0) {
                         try {
                             Address nextAddr = current.add(pointerSize);
-                            long nextValue = readPointer(memory, nextAddr, pointerSize);
-                            Address nextTarget = toAddress(program, nextValue);
+                            long nextValue = VtableUtil.readPointer(memory, nextAddr, pointerSize);
+                            Address nextTarget = VtableUtil.toAddress(program, nextValue);
                             if (program.getFunctionManager().getFunctionAt(nextTarget) == null) {
                                 break; // End of vtable
                             }
@@ -777,24 +747,6 @@ public class VtableToolProvider extends AbstractToolProvider {
         }
 
         return null;
-    }
-
-    private long readPointer(Memory memory, Address addr, int pointerSize) throws MemoryAccessException {
-        if (pointerSize == 8) {
-            return memory.getLong(addr);
-        } else {
-            return memory.getInt(addr) & 0xFFFFFFFFL;
-        }
-    }
-
-    /**
-     * Convert a raw pointer value to an Address.
-     * Note: Always uses the default address space. For programs with multiple
-     * address spaces (overlays, segments), this may resolve to the wrong space.
-     * This is acceptable for typical vtable analysis on standard executables.
-     */
-    private Address toAddress(Program program, long offset) {
-        return program.getAddressFactory().getDefaultAddressSpace().getAddress(offset);
     }
 
     private TaskMonitor createTimeoutMonitor() {

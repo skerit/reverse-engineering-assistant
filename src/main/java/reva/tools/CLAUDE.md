@@ -121,6 +121,17 @@ Integer optionalLimit = getOptionalInteger(args, "limit", null);  // Returns Int
 Map<String, String> mappings = getStringMap(args, "mappings");
 Map<String, Object> options = getOptionalMap(args, "options", Map.of());
 List<String> addresses = getOptionalStringList(args, "addresses", List.of());
+
+// Validated string lists (converts elements, validates no nulls)
+List<String> functions = getValidatedStringList(args, "functions");
+
+// Integer lists
+List<Integer> offsets = getIntegerList(args, "offsets");
+List<Integer> optionalOffsets = getOptionalIntegerList(args, "offsets", List.of());
+
+// Double parameters
+double ratio = getDouble(args, "ratio");
+double threshold = getOptionalDouble(args, "threshold", 0.5);
 ```
 
 **Exception handling is automatic** - registerTool() wraps handlers to catch exceptions:

@@ -438,6 +438,7 @@ public class ProjectToolProvider extends AbstractToolProvider {
      */
     private void collectImportedFiles(DomainFolder destFolder, String importedBaseName,
                                      boolean analyzeAfterImport, int analysisTimeoutSeconds,
+                                     boolean enableVersionControl,
                                      List<String> versionedFiles, List<String> analyzedFiles,
                                      List<String> errors, TaskMonitor monitor) {
         try {
@@ -490,7 +491,8 @@ public class ProjectToolProvider extends AbstractToolProvider {
                 }
 
                 // Add to version control after analysis (or immediately if no analysis)
-                if (file.canAddToRepository()) {
+                // Only add if enableVersionControl is true
+                if (enableVersionControl && file.canAddToRepository()) {
                     try {
                         // Use different commit message based on whether analysis was performed
                         String commitMessage = wasAnalyzed
@@ -507,7 +509,7 @@ public class ProjectToolProvider extends AbstractToolProvider {
             // Recursively process subfolders
             for (DomainFolder subfolder : destFolder.getFolders()) {
                 collectImportedFiles(subfolder, importedBaseName, analyzeAfterImport, analysisTimeoutSeconds,
-                    versionedFiles, analyzedFiles, errors, monitor);
+                    enableVersionControl, versionedFiles, analyzedFiles, errors, monitor);
             }
         } catch (Exception e) {
             errors.add("Error collecting imported files: " + e.getMessage());
@@ -589,6 +591,12 @@ public class ProjectToolProvider extends AbstractToolProvider {
         properties.put("programPath", SchemaUtil.stringProperty(
             "Path to the program to analyze (e.g., '/Hatchery.exe')"
         ));
+        properties.put("waitForCompletion", SchemaUtil.booleanPropertyWithDefault(
+            "Wait for analysis to complete before returning (default: true)", true
+        ));
+        properties.put("timeoutSeconds", SchemaUtil.integerPropertyWithDefault(
+            "Timeout in seconds when waiting for completion (default: 300)", 300
+        ));
 
         List<String> required = List.of("programPath");
 
@@ -596,7 +604,7 @@ public class ProjectToolProvider extends AbstractToolProvider {
         McpSchema.Tool tool = McpSchema.Tool.builder()
             .name("analyze-program")
             .title("Analyze Program")
-            .description("Run Ghidra's auto-analysis on a program")
+            .description("Run Ghidra's auto-analysis on a program. By default waits for completion.")
             .inputSchema(createSchema(properties, required))
             .build();
 
@@ -611,6 +619,8 @@ public class ProjectToolProvider extends AbstractToolProvider {
             }
 
             String programPath = program.getDomainFile().getPathname();
+            boolean waitForCompletion = getOptionalBoolean(request, "waitForCompletion", true);
+            int timeoutSeconds = getOptionalInt(request, "timeoutSeconds", 300);
 
             try {
                 // Get the auto-analysis manager
@@ -619,14 +629,35 @@ public class ProjectToolProvider extends AbstractToolProvider {
                     return createErrorResult("Could not get analysis manager for program: " + programPath);
                 }
 
+                // Create timeout monitor
+                TaskMonitor monitor = waitForCompletion
+                    ? TimeoutTaskMonitor.timeoutIn(timeoutSeconds, TimeUnit.SECONDS)
+                    : TaskMonitor.DUMMY;
+
                 // Start analysis
-                analysisManager.startAnalysis(TaskMonitor.DUMMY);
+                analysisManager.startAnalysis(monitor);
 
                 Map<String, Object> result = new HashMap<>();
-                result.put("success", true);
                 result.put("programPath", programPath);
-                result.put("message", "Analysis started successfully");
-                result.put("analysisRunning", analysisManager.isAnalyzing());
+
+                if (waitForCompletion) {
+                    // Wait for analysis to complete
+                    analysisManager.waitForAnalysis(null, monitor);
+
+                    if (monitor.isCancelled()) {
+                        result.put("success", false);
+                        result.put("message", "Analysis timed out after " + timeoutSeconds + " seconds");
+                        result.put("timedOut", true);
+                    } else {
+                        result.put("success", true);
+                        result.put("message", "Analysis completed successfully");
+                        result.put("functionCount", program.getFunctionManager().getFunctionCount());
+                    }
+                } else {
+                    result.put("success", true);
+                    result.put("message", "Analysis started successfully");
+                    result.put("analysisRunning", analysisManager.isAnalyzing());
+                }
 
                 return createJsonResult(result);
 
@@ -871,7 +902,7 @@ public class ProjectToolProvider extends AbstractToolProvider {
 
                     // Get all files that were imported, analyze if requested, and add to version control
                     collectImportedFiles(destFolder, file.getName(), analyzeAfterImport, analysisTimeoutSeconds,
-                        versionedFiles, analyzedFiles, errors, vcMonitor);
+                        enableVersionControl, versionedFiles, analyzedFiles, errors, vcMonitor);
                 }
 
                 // Collect all imported program paths

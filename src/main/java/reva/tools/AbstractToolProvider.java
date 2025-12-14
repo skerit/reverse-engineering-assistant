@@ -425,41 +425,222 @@ public abstract class AbstractToolProvider implements ToolProvider {
     }
 
     /**
-     * Get a required list parameter from arguments
+     * Get a required list of strings from arguments.
+     * Elements must be strings - use {@link #getValidatedStringList} if elements may be other types.
      * @param args The arguments map
      * @param key The parameter key
-     * @return The list value
-     * @throws IllegalArgumentException if the parameter is missing or not a list
+     * @return The list of strings
+     * @throws IllegalArgumentException if the parameter is missing, not a list, or contains non-string elements
      */
-    @SuppressWarnings("unchecked")
     protected List<String> getStringList(Map<String, Object> args, String key) {
         Object value = args.get(key);
         if (value == null) {
             throw new IllegalArgumentException("Missing required parameter: " + key);
         }
-        if (value instanceof List) {
-            return (List<String>) value;
+        if (!(value instanceof List<?>)) {
+            throw new IllegalArgumentException("Parameter '" + key + "' must be a list");
         }
-        throw new IllegalArgumentException("Parameter '" + key + "' must be a list");
+
+        List<?> rawList = (List<?>) value;
+        List<String> result = new ArrayList<>(rawList.size());
+
+        for (int i = 0; i < rawList.size(); i++) {
+            Object item = rawList.get(i);
+            if (item == null) {
+                throw new IllegalArgumentException(
+                    "Null value at index " + i + " in '" + key + "'");
+            }
+            if (!(item instanceof String)) {
+                throw new IllegalArgumentException(
+                    "Expected string at index " + i + " in '" + key + "', got " + item.getClass().getSimpleName());
+            }
+            result.add((String) item);
+        }
+
+        return result;
     }
 
     /**
-     * Get an optional list parameter from arguments
+     * Get an optional list of strings from arguments.
+     * Elements must be strings - use {@link #getValidatedStringList} pattern if elements may be other types.
      * @param args The arguments map
      * @param key The parameter key
      * @param defaultValue The default value if not present
-     * @return The list value or default
+     * @return The list of strings or default
+     * @throws IllegalArgumentException if the parameter is not a list or contains non-string elements
      */
-    @SuppressWarnings("unchecked")
     protected List<String> getOptionalStringList(Map<String, Object> args, String key, List<String> defaultValue) {
         Object value = args.get(key);
         if (value == null) {
             return defaultValue;
         }
-        if (value instanceof List) {
-            return (List<String>) value;
+        if (!(value instanceof List<?>)) {
+            throw new IllegalArgumentException("Parameter '" + key + "' must be a list");
         }
-        throw new IllegalArgumentException("Parameter '" + key + "' must be a list");
+
+        List<?> rawList = (List<?>) value;
+        List<String> result = new ArrayList<>(rawList.size());
+
+        for (int i = 0; i < rawList.size(); i++) {
+            Object item = rawList.get(i);
+            if (item == null) {
+                throw new IllegalArgumentException(
+                    "Null value at index " + i + " in '" + key + "'");
+            }
+            if (!(item instanceof String)) {
+                throw new IllegalArgumentException(
+                    "Expected string at index " + i + " in '" + key + "', got " + item.getClass().getSimpleName());
+            }
+            result.add((String) item);
+        }
+
+        return result;
+    }
+
+    /**
+     * Get and validate a list of strings from request arguments.
+     * Converts non-string elements to strings using toString().
+     * @param args The arguments map
+     * @param key The parameter key
+     * @return Validated list of strings
+     * @throws IllegalArgumentException for null elements or missing parameter
+     */
+    protected List<String> getValidatedStringList(Map<String, Object> args, String key) {
+        Object value = args.get(key);
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required parameter: " + key);
+        }
+
+        if (!(value instanceof List<?>)) {
+            throw new IllegalArgumentException("Parameter '" + key + "' must be a list");
+        }
+
+        List<?> rawList = (List<?>) value;
+        List<String> result = new ArrayList<>(rawList.size());
+
+        for (int i = 0; i < rawList.size(); i++) {
+            Object item = rawList.get(i);
+            if (item == null) {
+                throw new IllegalArgumentException(
+                    "Null value at index " + i + " in '" + key + "'");
+            }
+            // Convert to string (handles Number, Boolean, etc.)
+            result.add(item.toString());
+        }
+
+        return result;
+    }
+
+    /**
+     * Get a required list of integers from arguments.
+     * @param args The arguments map
+     * @param key The parameter key
+     * @return List of integers
+     * @throws IllegalArgumentException if the parameter is missing or contains invalid values
+     */
+    protected List<Integer> getIntegerList(Map<String, Object> args, String key) {
+        Object value = args.get(key);
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required parameter: " + key);
+        }
+        return parseIntegerListInternal(value, key);
+    }
+
+    /**
+     * Get an optional list of integers from arguments.
+     * @param args The arguments map
+     * @param key The parameter key
+     * @param defaultValue The default value if not present
+     * @return List of integers or default
+     * @throws IllegalArgumentException if the parameter contains invalid values
+     */
+    protected List<Integer> getOptionalIntegerList(Map<String, Object> args, String key, List<Integer> defaultValue) {
+        Object value = args.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return parseIntegerListInternal(value, key);
+    }
+
+    /**
+     * Internal method to parse an integer list from a value.
+     */
+    private List<Integer> parseIntegerListInternal(Object value, String key) {
+        if (!(value instanceof List<?>)) {
+            throw new IllegalArgumentException("Parameter '" + key + "' must be a list");
+        }
+
+        List<?> rawList = (List<?>) value;
+        List<Integer> result = new ArrayList<>(rawList.size());
+
+        int index = 0;
+        for (Object item : rawList) {
+            if (item instanceof Number) {
+                result.add(((Number) item).intValue());
+            } else if (item instanceof String) {
+                try {
+                    result.add(Integer.parseInt((String) item));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "Invalid integer at index " + index + " in '" + key + "': " + item);
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "Invalid type at index " + index + " in '" + key + "': expected integer, got " +
+                    (item != null ? item.getClass().getSimpleName() : "null"));
+            }
+            index++;
+        }
+        return result;
+    }
+
+    /**
+     * Get a required double parameter from arguments.
+     * @param args The arguments map
+     * @param key The parameter key
+     * @return The double value
+     * @throws IllegalArgumentException if the parameter is missing or not a number
+     */
+    protected double getDouble(Map<String, Object> args, String key) {
+        Object value = args.get(key);
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required parameter: " + key);
+        }
+        return parseDoubleInternal(value, key);
+    }
+
+    /**
+     * Get an optional double parameter from arguments.
+     * @param args The arguments map
+     * @param key The parameter key
+     * @param defaultValue The default value if not present
+     * @return The double value or default
+     * @throws IllegalArgumentException if the parameter is not a valid number
+     */
+    protected double getOptionalDouble(Map<String, Object> args, String key, double defaultValue) {
+        Object value = args.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return parseDoubleInternal(value, key);
+    }
+
+    /**
+     * Internal method to parse a double from a value.
+     */
+    private double parseDoubleInternal(Object value, String key) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        } else if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(
+                    "Parameter '" + key + "' must be a valid number, got: " + value);
+            }
+        }
+        throw new IllegalArgumentException(
+            "Parameter '" + key + "' must be a number, got type: " + value.getClass().getSimpleName());
     }
 
     /**

@@ -135,11 +135,62 @@ dependencies {
 	// pcodeTestImplementation "junit:junit:4.13.2"
 }
 
+// Task to build the test binary for structure inference tests
+// REQUIREMENTS: bash, make, g++ (Linux/macOS only, see Makefile for Windows alternatives)
+task buildTestBinaries(type: Exec) {
+	group 'build'
+	description 'Builds C++ test binaries for integration tests (requires bash, make, g++)'
+	workingDir file('src/test.slow/resources/binaries/src')
+	// Run clean before build to ensure we don't use stale binaries from different build configurations
+	commandLine 'bash', '-c', 'make clean && make all'
+
+	// Only rebuild if source changed
+	inputs.file file('src/test.slow/resources/binaries/src/structure_test.cpp')
+	inputs.file file('src/test.slow/resources/binaries/src/Makefile')
+	outputs.file file('src/test.slow/resources/binaries/structure_test')
+
+	// Check for required tools before running
+	doFirst {
+		def os = System.getProperty('os.name').toLowerCase()
+		if (os.contains('windows')) {
+			throw new GradleException(
+				"Building test binaries requires bash, make, and g++ which are not available on Windows by default.\n" +
+				"Options:\n" +
+				"  1. Use WSL (Windows Subsystem for Linux)\n" +
+				"  2. Use MinGW/MSYS2 with bash and g++\n" +
+				"  3. Skip integration tests: gradle build -x integrationTest"
+			)
+		}
+		// Verify tools are available on Unix-like systems
+		def bashCheck = ['which', 'bash'].execute()
+		bashCheck.waitFor()
+		if (bashCheck.exitValue() != 0) {
+			throw new GradleException("bash not found. Install bash to build test binaries.")
+		}
+		def makeCheck = ['which', 'make'].execute()
+		makeCheck.waitFor()
+		if (makeCheck.exitValue() != 0) {
+			throw new GradleException("make not found. Install make to build test binaries (e.g., apt install build-essential).")
+		}
+		def gppCheck = ['which', 'g++'].execute()
+		gppCheck.waitFor()
+		if (gppCheck.exitValue() != 0) {
+			throw new GradleException("g++ not found. Install g++ to build test binaries (e.g., apt install build-essential).")
+		}
+	}
+}
+
+// Ensure test binary is built before processing integration test resources
+processIntegrationTestResources.dependsOn buildTestBinaries
+
 task integrationTest(type: Test) {
 	group 'verification'
 	description 'Runs integration tests (tests that require GUI/headed environment)'
 	testClassesDirs = sourceSets.integrationTest.output.classesDirs
 	classpath = sourceSets.integrationTest.runtimeClasspath
+
+	// Ensure test binaries are built before running integration tests
+	dependsOn buildTestBinaries
 
 	// Fork every test to prevent configuration conflicts
 	forkEvery 1
