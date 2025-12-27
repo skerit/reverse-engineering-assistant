@@ -24,7 +24,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpError;
 
 /**
@@ -35,7 +35,7 @@ import io.modelcontextprotocol.spec.McpError;
 public class DecompilerToolProviderTest {
     
     @Mock
-    private McpSyncServer mockServer;
+    private McpStatelessSyncServer mockServer;
     
     private DecompilerToolProvider toolProvider;
     

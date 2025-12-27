@@ -31,7 +31,7 @@ import ghidra.program.model.mem.Memory;
 import ghidra.util.Msg;
 import ghidra.util.data.DataTypeParser;
 import ghidra.util.data.DataTypeParser.AllowedDataTypes;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -47,7 +47,7 @@ public class StructureToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public StructureToolProvider(McpSyncServer server) {
+    public StructureToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

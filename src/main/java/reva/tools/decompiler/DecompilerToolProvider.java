@@ -63,7 +63,7 @@ import ghidra.util.exception.CancelledException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.Msg;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.plugin.ConfigManager;
 import reva.tools.AbstractToolProvider;
@@ -86,7 +86,7 @@ public class DecompilerToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public DecompilerToolProvider(McpSyncServer server) {
+    public DecompilerToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 
@@ -615,8 +615,8 @@ public class DecompilerToolProvider extends AbstractToolProvider {
         ));
         properties.put("includeReferenceContext", Map.of(
             "type", "boolean",
-            "description", "Whether to include code context snippets from calling functions (requires includeIncomingReferences)",
-            "default", true
+            "description", "Whether to include code context snippets from calling functions (requires includeIncomingReferences). Disabled by default for performance - each context snippet requires decompiling the calling function.",
+            "default", false
         ));
         properties.put("includeCallers", Map.of(
             "type", "boolean",
@@ -654,7 +654,7 @@ public class DecompilerToolProvider extends AbstractToolProvider {
             boolean includeDisassembly = getOptionalBoolean(request, "includeDisassembly", false);
             boolean includeComments = getOptionalBoolean(request, "includeComments", false);
             boolean includeIncomingReferences = getOptionalBoolean(request, "includeIncomingReferences", true);
-            boolean includeReferenceContext = getOptionalBoolean(request, "includeReferenceContext", true);
+            boolean includeReferenceContext = getOptionalBoolean(request, "includeReferenceContext", false);
             boolean includeCallers = getOptionalBoolean(request, "includeCallers", false);
             boolean includeCallees = getOptionalBoolean(request, "includeCallees", false);
             boolean signatureOnly = getOptionalBoolean(request, "signatureOnly", false);
@@ -964,8 +964,8 @@ public class DecompilerToolProvider extends AbstractToolProvider {
                     ". Use 'overrideMaxFunctionsLimit' to bypass this check, but be aware it may take a long time. If possible, try the cross reference tools.");
             }
 
-            // Perform the search with progress reporting
-            List<Map<String, Object>> searchResults = searchDecompilationInProgram(program, pattern, maxResults, caseSensitive, exchange);
+            // Perform the search (progress reporting not available in stateless mode)
+            List<Map<String, Object>> searchResults = searchDecompilationInProgram(program, pattern, maxResults, caseSensitive);
 
             // Create result data
             Map<String, Object> resultData = new HashMap<>();
@@ -1469,7 +1469,7 @@ public class DecompilerToolProvider extends AbstractToolProvider {
      * @return List of search results
      */
     private List<Map<String, Object>> searchDecompilationInProgram(Program program, String pattern,
-            int maxResults, boolean caseSensitive, io.modelcontextprotocol.server.McpSyncServerExchange exchange) {
+            int maxResults, boolean caseSensitive) {
         List<Map<String, Object>> results = new ArrayList<>();
         final String toolName = "search-decompilation";
 
@@ -1487,24 +1487,10 @@ public class DecompilerToolProvider extends AbstractToolProvider {
             }
 
             try {
-                // Count total functions for progress tracking
-                int totalFunctions = program.getFunctionManager().getFunctionCount();
-                int processedFunctions = 0;
-
-                // Generate unique progress token for this search
-                String progressToken = "search-" + System.currentTimeMillis();
-
-                // Send initial progress notification
-                if (exchange != null) {
-                    exchange.progressNotification(new McpSchema.ProgressNotification(
-                        progressToken, 0.0, (double) totalFunctions, "Starting decompilation search..."));
-                }
-
                 // Iterate through all functions
                 FunctionIterator functions = program.getFunctionManager().getFunctions(true);
                 while (functions.hasNext() && results.size() < maxResults) {
                     Function function = functions.next();
-                    processedFunctions++;
 
                     // Skip external functions
                     if (function.isExternal()) {
@@ -1532,10 +1518,6 @@ public class DecompilerToolProvider extends AbstractToolProvider {
                         logError(toolName + ": Failed to decompile function: " + function.getName(), e);
                         continue;
                     }
-
-                    // Send progress update every 10 functions or when search is complete
-                    sendSearchProgress(exchange, progressToken, processedFunctions, totalFunctions,
-                        results.size(), maxResults, functions.hasNext());
                 }
             } finally {
                 decompiler.dispose();
@@ -1577,30 +1559,6 @@ public class DecompilerToolProvider extends AbstractToolProvider {
                 results.add(result);
             }
         }
-    }
-
-    /**
-     * Sends progress notification for search operation.
-     */
-    private void sendSearchProgress(io.modelcontextprotocol.server.McpSyncServerExchange exchange,
-            String progressToken, int processedFunctions, int totalFunctions,
-            int resultsCount, int maxResults, boolean hasMoreFunctions) {
-        if (exchange == null || (processedFunctions % 10 != 0 && resultsCount < maxResults && hasMoreFunctions)) {
-            return;
-        }
-
-        String message;
-        if (resultsCount >= maxResults) {
-            message = String.format("Found %d matches (max results reached)", resultsCount);
-        } else if (!hasMoreFunctions) {
-            message = String.format("Search complete - found %d matches", resultsCount);
-        } else {
-            message = String.format("Processed %d/%d functions - found %d matches so far",
-                processedFunctions, totalFunctions, resultsCount);
-        }
-
-        exchange.progressNotification(new McpSchema.ProgressNotification(
-            progressToken, (double) processedFunctions, (double) totalFunctions, message));
     }
 
     /**

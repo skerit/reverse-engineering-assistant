@@ -24,7 +24,7 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.Memory;
 import ghidra.program.model.mem.MemoryBlock;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.MemoryUtil;
@@ -40,7 +40,7 @@ public class MemoryToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public MemoryToolProvider(McpSyncServer server) {
+    public MemoryToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

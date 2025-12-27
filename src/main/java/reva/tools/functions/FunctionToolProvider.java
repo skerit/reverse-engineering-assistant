@@ -57,7 +57,7 @@ import ghidra.program.model.symbol.Symbol;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -179,7 +179,7 @@ public class FunctionToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public FunctionToolProvider(McpSyncServer server) {
+    public FunctionToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

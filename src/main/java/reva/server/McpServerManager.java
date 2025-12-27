@@ -36,8 +36,8 @@ import ghidra.program.model.listing.Program;
 import ghidra.util.Msg;
 
 import io.modelcontextprotocol.server.McpServer;
-import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
+import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.plugin.ConfigManager;
 import reva.plugin.ConfigChangeListener;
@@ -75,8 +75,8 @@ public class McpServerManager implements RevaMcpService, ConfigChangeListener {
     private static final String MCP_SERVER_NAME = "ReVa";
     private static final String MCP_SERVER_VERSION = "1.0.0";
 
-    private final McpSyncServer server;
-    private HttpServletStreamableServerTransportProvider currentTransportProvider;
+    private final McpStatelessSyncServer server;
+    private HttpServletStatelessServerTransport currentTransportProvider;
     private Server httpServer;
     private final GThreadPool threadPool;
     private final ConfigManager configManager;
@@ -103,6 +103,7 @@ public class McpServerManager implements RevaMcpService, ConfigChangeListener {
     /**
      * Constructor with ConfigManager. Initializes the MCP server with all capabilities.
      * This is the primary constructor used by both GUI and headless modes.
+     * Uses stateless transport to avoid session management issues with direct HTTP clients.
      * @param configManager The configuration manager to use
      */
     public McpServerManager(ConfigManager configManager) {
@@ -117,7 +118,7 @@ public class McpServerManager implements RevaMcpService, ConfigChangeListener {
         threadPool = GThreadPool.getPrivateThreadPool("ReVa");
         RevaInternalServiceRegistry.registerService(GThreadPool.class, threadPool);
 
-        // Initialize MCP transport provider with baseUrl
+        // Initialize MCP transport provider (stateless mode for direct HTTP clients)
         recreateTransportProvider();
 
         // Configure server capabilities
@@ -127,14 +128,15 @@ public class McpServerManager implements RevaMcpService, ConfigChangeListener {
             .tools(true)
             .build();
 
-        // Initialize MCP server
+        // Initialize MCP server in stateless mode
+        // McpServer.sync() is overloaded - passing McpStatelessServerTransport returns StatelessSyncSpecification
         server = McpServer.sync(currentTransportProvider)
             .serverInfo(MCP_SERVER_NAME, MCP_SERVER_VERSION)
             .capabilities(serverCapabilities)
             .build();
 
         // Make server and server manager available via service registry
-        RevaInternalServiceRegistry.registerService(McpSyncServer.class, server);
+        RevaInternalServiceRegistry.registerService(McpStatelessSyncServer.class, server);
         RevaInternalServiceRegistry.registerService(McpServerManager.class, this);
 
         // Create and register resource providers
@@ -409,18 +411,13 @@ public class McpServerManager implements RevaMcpService, ConfigChangeListener {
 
     /**
      * Recreate the transport provider with updated configuration.
-     * This is necessary when configuration changes during server restart.
+     * Uses stateless transport to avoid session management issues.
      */
     private void recreateTransportProvider() {
-        int serverPort = configManager.getServerPort();
-        String serverHost = configManager.getServerHost();
-        String baseUrl = "http://" + serverHost + ":" + serverPort;
-
-        // Create new transport provider with updated configuration
-        // Note: As of MCP SDK v0.14.0, the builder uses McpJsonMapper.getDefault() automatically
-        currentTransportProvider = HttpServletStreamableServerTransportProvider.builder()
-            .mcpEndpoint(MCP_MSG_ENDPOINT)
-            .keepAliveInterval(java.time.Duration.ofSeconds(30))
+        // Create new stateless transport provider
+        // Stateless mode means each request is independent - no session tracking required
+        currentTransportProvider = HttpServletStatelessServerTransport.builder()
+            .messageEndpoint(MCP_MSG_ENDPOINT)
             .build();
     }
 

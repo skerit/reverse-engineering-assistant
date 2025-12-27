@@ -31,7 +31,7 @@ import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import ghidra.util.task.TimeoutTaskMonitor;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -67,7 +67,7 @@ public class VtableToolProvider extends AbstractToolProvider {
      * Creates a new VtableToolProvider.
      * @param server The MCP server to register tools with
      */
-    public VtableToolProvider(McpSyncServer server) {
+    public VtableToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

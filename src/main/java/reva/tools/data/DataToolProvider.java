@@ -30,7 +30,7 @@ import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolTable;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.Content;
@@ -48,7 +48,7 @@ public class DataToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public DataToolProvider(McpSyncServer server) {
+    public DataToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

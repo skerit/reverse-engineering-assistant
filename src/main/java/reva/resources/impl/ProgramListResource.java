@@ -24,8 +24,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ghidra.program.model.listing.Program;
-import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessServerFeatures.SyncResourceSpecification;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema.ReadResourceResult;
 import io.modelcontextprotocol.spec.McpSchema.Resource;
 import io.modelcontextprotocol.spec.McpSchema.ResourceContents;
@@ -47,7 +47,7 @@ public class ProgramListResource extends AbstractResourceProvider {
      * Constructor
      * @param server The MCP server to register with
      */
-    public ProgramListResource(McpSyncServer server) {
+    public ProgramListResource(McpStatelessSyncServer server) {
         super(server);
     }
 
@@ -63,7 +63,7 @@ public class ProgramListResource extends AbstractResourceProvider {
 
         SyncResourceSpecification resourceSpec = new SyncResourceSpecification(
             resource,
-            (exchange, request) -> {
+            (context, request) -> {
                 List<ResourceContents> resourceContents = new ArrayList<>();
 
                 // Get all open programs

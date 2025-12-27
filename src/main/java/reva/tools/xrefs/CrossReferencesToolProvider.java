@@ -29,7 +29,7 @@ import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolTable;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -46,7 +46,7 @@ public class CrossReferencesToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public CrossReferencesToolProvider(McpSyncServer server) {
+    public CrossReferencesToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

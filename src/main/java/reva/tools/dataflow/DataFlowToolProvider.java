@@ -28,7 +28,7 @@ import ghidra.program.model.pcode.PcodeOpAST;
 import ghidra.program.model.pcode.Varnode;
 import ghidra.util.task.TaskMonitor;
 import ghidra.util.task.TimeoutTaskMonitor;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.plugin.ConfigManager;
 import reva.tools.AbstractToolProvider;
@@ -47,7 +47,7 @@ public class DataFlowToolProvider extends AbstractToolProvider {
     private static final int DEFAULT_DECOMPILER_TIMEOUT_SECS = 30;
     private static final int MAX_SLICE_SIZE = 500;
 
-    public DataFlowToolProvider(McpSyncServer server) {
+    public DataFlowToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

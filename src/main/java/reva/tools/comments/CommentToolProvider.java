@@ -29,7 +29,7 @@ import ghidra.program.model.listing.CommentType;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.CodeUnitIterator;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -53,7 +53,7 @@ public class CommentToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public CommentToolProvider(McpSyncServer server) {
+    public CommentToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

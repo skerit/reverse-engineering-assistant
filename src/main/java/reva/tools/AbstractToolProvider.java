@@ -31,11 +31,12 @@ import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolTable;
 import ghidra.util.Msg;
 import reva.util.AddressUtil;
-import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
+import io.modelcontextprotocol.server.McpStatelessServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import reva.plugin.RevaProgramManager;
 import reva.util.ProgramLookupUtil;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
+import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.Content;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
@@ -48,14 +49,14 @@ import io.modelcontextprotocol.spec.McpSchema.JsonSchema;
  */
 public abstract class AbstractToolProvider implements ToolProvider {
     protected static final ObjectMapper JSON = new ObjectMapper();
-    protected final McpSyncServer server;
+    protected final McpStatelessSyncServer server;
     protected final List<Tool> registeredTools = new ArrayList<>();
 
     /**
      * Constructor
      * @param server The MCP server to register tools with
      */
-    public AbstractToolProvider(McpSyncServer server) {
+    public AbstractToolProvider(McpStatelessSyncServer server) {
         this.server = server;
     }
 
@@ -134,12 +135,12 @@ public abstract class AbstractToolProvider implements ToolProvider {
      * @param tool The tool to register
      * @param handler The handler function for the tool
      */
-    protected void registerTool(Tool tool, java.util.function.BiFunction<io.modelcontextprotocol.server.McpSyncServerExchange, CallToolRequest, McpSchema.CallToolResult> handler) {
+    protected void registerTool(Tool tool, java.util.function.BiFunction<McpTransportContext, CallToolRequest, McpSchema.CallToolResult> handler) {
         // Wrap the handler with safe execution
-        java.util.function.BiFunction<io.modelcontextprotocol.server.McpSyncServerExchange, CallToolRequest, McpSchema.CallToolResult> safeHandler = 
-            (exchange, request) -> {
+        java.util.function.BiFunction<McpTransportContext, CallToolRequest, McpSchema.CallToolResult> safeHandler =
+            (context, request) -> {
                 try {
-                    return handler.apply(exchange, request);
+                    return handler.apply(context, request);
                 } catch (IllegalArgumentException e) {
                     return createErrorResult(e.getMessage());
                 } catch (ProgramValidationException e) {
@@ -149,7 +150,7 @@ public abstract class AbstractToolProvider implements ToolProvider {
                     return createErrorResult("Tool execution failed: " + e.getMessage());
                 }
             };
-        
+
         SyncToolSpecification toolSpec = SyncToolSpecification.builder()
             .tool(tool)
             .callHandler(safeHandler)

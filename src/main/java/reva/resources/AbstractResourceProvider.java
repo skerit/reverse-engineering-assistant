@@ -17,20 +17,20 @@ package reva.resources;
 
 import ghidra.program.model.listing.Program;
 import ghidra.util.Msg;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 
 /**
  * Base implementation of the ResourceProvider interface.
  * Provides common functionality for all resource providers.
  */
 public abstract class AbstractResourceProvider implements ResourceProvider {
-    protected final McpSyncServer server;
+    protected final McpStatelessSyncServer server;
 
     /**
      * Constructor
      * @param server The MCP server to register resources with
      */
-    public AbstractResourceProvider(McpSyncServer server) {
+    public AbstractResourceProvider(McpStatelessSyncServer server) {
         this.server = server;
     }
 

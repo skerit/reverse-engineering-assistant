@@ -26,7 +26,7 @@ import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolIterator;
 import ghidra.program.model.symbol.SymbolTable;
 import ghidra.program.model.symbol.SymbolType;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -40,7 +40,7 @@ public class SymbolToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public SymbolToolProvider(McpSyncServer server) {
+    public SymbolToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

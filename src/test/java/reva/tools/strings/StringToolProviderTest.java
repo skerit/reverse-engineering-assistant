@@ -31,7 +31,7 @@ import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.DataIterator;
 import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpError;
 
 /**
@@ -39,7 +39,7 @@ import io.modelcontextprotocol.spec.McpError;
  */
 public class StringToolProviderTest {
     @Mock
-    private McpSyncServer mockServer;
+    private McpStatelessSyncServer mockServer;
     
     @Mock
     private Program mockProgram;

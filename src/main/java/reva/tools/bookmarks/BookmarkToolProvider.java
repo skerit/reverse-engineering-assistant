@@ -27,7 +27,7 @@ import ghidra.program.model.address.AddressSetView;
 import ghidra.program.model.listing.Bookmark;
 import ghidra.program.model.listing.BookmarkManager;
 import ghidra.program.model.listing.Program;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.SchemaUtil;
@@ -42,7 +42,7 @@ public class BookmarkToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public BookmarkToolProvider(McpSyncServer server) {
+    public BookmarkToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

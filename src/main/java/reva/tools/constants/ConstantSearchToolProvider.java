@@ -19,7 +19,7 @@ import ghidra.program.model.scalar.Scalar;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import ghidra.util.task.TimeoutTaskMonitor;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -41,7 +41,7 @@ public class ConstantSearchToolProvider extends AbstractToolProvider {
     /** Maximum sample locations to collect per constant */
     private static final int MAX_SAMPLE_LOCATIONS = 5;
 
-    public ConstantSearchToolProvider(McpSyncServer server) {
+    public ConstantSearchToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

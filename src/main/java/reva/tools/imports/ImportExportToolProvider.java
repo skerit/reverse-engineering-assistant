@@ -20,7 +20,7 @@ import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolTable;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -44,7 +44,7 @@ public class ImportExportToolProvider extends AbstractToolProvider {
     // Thunk resolution limits
     private static final int MAX_THUNK_CHAIN_DEPTH = 10;
 
-    public ImportExportToolProvider(McpSyncServer server) {
+    public ImportExportToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

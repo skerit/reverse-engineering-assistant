@@ -35,7 +35,7 @@ import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.ReferenceManager;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -63,7 +63,7 @@ public class StringToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public StringToolProvider(McpSyncServer server) {
+    public StringToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

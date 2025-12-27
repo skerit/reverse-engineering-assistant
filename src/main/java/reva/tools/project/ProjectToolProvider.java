@@ -45,7 +45,7 @@ import ghidra.formats.gfilesystem.FSRL;
 import ghidra.formats.gfilesystem.FileSystemService;
 import ghidra.plugins.importer.batch.BatchInfo;
 import ghidra.plugins.importer.tasks.ImportBatchTask;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.plugin.RevaProgramManager;
 import reva.plugin.ConfigManager;
@@ -63,7 +63,7 @@ public class ProjectToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public ProjectToolProvider(McpSyncServer server) {
+    public ProjectToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

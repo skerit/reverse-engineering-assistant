@@ -14,7 +14,7 @@ import ghidra.program.model.listing.Program;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import ghidra.util.task.TimeoutTaskMonitor;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.tools.AbstractToolProvider;
 import reva.util.AddressUtil;
@@ -36,7 +36,7 @@ public class CallGraphToolProvider extends AbstractToolProvider {
     private static final int MAX_NODES_TREE = 500;
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
 
-    public CallGraphToolProvider(McpSyncServer server) {
+    public CallGraphToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 

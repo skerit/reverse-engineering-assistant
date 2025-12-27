@@ -27,7 +27,7 @@ import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.DataTypeManager;
 import ghidra.program.model.listing.Program;
 import ghidra.util.Msg;
-import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import reva.plugin.RevaProgramManager;
 import reva.tools.AbstractToolProvider;
@@ -43,7 +43,7 @@ public class DataTypeToolProvider extends AbstractToolProvider {
      * Constructor
      * @param server The MCP server
      */
-    public DataTypeToolProvider(McpSyncServer server) {
+    public DataTypeToolProvider(McpStatelessSyncServer server) {
         super(server);
     }
 
