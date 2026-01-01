@@ -1314,29 +1314,31 @@ public class StructureToolProvider extends AbstractToolProvider {
     }
 
     /**
-     * Check if a field is an undefined/default field that should be condensed
+     * Check if a field is an undefined/default field that should be condensed.
+     *
+     * A field is only condensed if BOTH conditions are met:
+     * 1. The field has a default/empty name (null, empty, or matches field_0x pattern)
+     * 2. The datatype is "undefined" or similar
+     *
+     * This allows users to explicitly name fields like "field_0x0C" with a real type
+     * (e.g., byte) without having them condensed.
      */
     private boolean isUndefinedField(DataTypeComponent comp) {
-        // Check if the field name is null or empty (undefined)
         String fieldName = comp.getFieldName();
-        if (fieldName == null || fieldName.isEmpty()) {
-            return true;
-        }
-
-        // Check if it's a Ghidra default field name like "field_0x0", "field_0x1", etc.
-        // These are generated for undefined structure areas
-        if (fieldName.startsWith("field_0x") || fieldName.startsWith("field0x")) {
-            return true;
-        }
-
-        // Check if the datatype is "undefined" or "undefined1"
         DataType fieldType = comp.getDataType();
         String typeName = fieldType.getName();
-        if (typeName != null && typeName.startsWith("undefined")) {
-            return true;
-        }
 
-        return false;
+        // Check if datatype is undefined
+        boolean hasUndefinedType = typeName != null && typeName.startsWith("undefined");
+
+        // Check if name is null, empty, or matches default Ghidra pattern
+        boolean hasDefaultName = fieldName == null || fieldName.isEmpty() ||
+                                 fieldName.startsWith("field_0x") || fieldName.startsWith("field0x");
+
+        // Only condense if BOTH the name is default AND the type is undefined
+        // This prevents user-provided field names from being treated as undefined
+        // even if they happen to match the default pattern (e.g., "field_0x0C" with type "byte")
+        return hasDefaultName && hasUndefinedType;
     }
 
     /**
