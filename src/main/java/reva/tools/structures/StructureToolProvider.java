@@ -962,13 +962,18 @@ public class StructureToolProvider extends AbstractToolProvider {
     }
 
     /**
-     * Register tool to delete a structure with reference checking
+     * Register tool to delete a structure with reference checking.
+     *
+     * The 'force' parameter is intentionally NOT documented in the schema.
+     * This ensures the assistant must first attempt deletion, see the error
+     * with the list of usages that will be destroyed, and only THEN can
+     * make an informed decision to use force=true.
      */
     private void registerDeleteStructureTool() {
         Map<String, Object> properties = new HashMap<>();
         properties.put("programPath", SchemaUtil.createStringProperty("Path of the program"));
         properties.put("structureName", SchemaUtil.createStringProperty("Name of the structure to delete"));
-        properties.put("force", SchemaUtil.createOptionalBooleanProperty("Force deletion even if structure is referenced (default: false)"));
+        // Note: 'force' parameter exists but is intentionally undocumented - see comment above
 
         List<String> required = new ArrayList<>();
         required.add("programPath");
@@ -978,8 +983,8 @@ public class StructureToolProvider extends AbstractToolProvider {
             .name("delete-structure")
             .title("Delete Structure")
             .description("Delete a structure from the program. " +
-                         "Checks for references (function signatures, variables, memory) before deletion. " +
-                         "Use force=true to delete anyway despite references.")
+                         "If the structure is in use, deletion will be blocked and you will see what is using it. " +
+                         "To modify a structure without losing usages, use modify-structure-field or modify-structure-from-c instead.")
             .inputSchema(createSchema(properties, required))
             .build();
 
@@ -997,7 +1002,7 @@ public class StructureToolProvider extends AbstractToolProvider {
                     return createErrorResult("Structure not found: " + structureName);
                 }
 
-                // Check for references to this structure
+                // Check for references to this structure (including pointers like MyStruct*)
                 List<String> functionReferences = new ArrayList<>();
                 List<String> memoryReferences = new ArrayList<>();
 
@@ -1006,56 +1011,67 @@ public class StructureToolProvider extends AbstractToolProvider {
                 while (functions.hasNext()) {
                     ghidra.program.model.listing.Function func = functions.next();
 
-                    // Check return type
-                    if (func.getReturnType().isEquivalent(dt)) {
-                        functionReferences.add(func.getName() + " (return type)");
+                    // Check return type (including pointers to structure)
+                    if (StructureUsageAnalyzer.isTypeOrPointerToType(func.getReturnType(), dt)) {
+                        functionReferences.add(func.getName() + " (return type: " + func.getReturnType().getDisplayName() + ")");
                     }
 
-                    // Check parameters
+                    // Check parameters (including pointers to structure)
                     for (ghidra.program.model.listing.Parameter param : func.getParameters()) {
-                        if (param.getDataType().isEquivalent(dt)) {
-                            functionReferences.add(func.getName() + " (parameter: " + param.getName() + ")");
+                        if (StructureUsageAnalyzer.isTypeOrPointerToType(param.getDataType(), dt)) {
+                            functionReferences.add(func.getName() + " (parameter: " + param.getName() + " - " + param.getDataType().getDisplayName() + ")");
                         }
                     }
 
-                    // Check local variables
+                    // Check local variables (including pointers to structure)
                     for (ghidra.program.model.listing.Variable var : func.getAllVariables()) {
-                        if (var.getDataType().isEquivalent(dt)) {
-                            functionReferences.add(func.getName() + " (variable: " + var.getName() + ")");
+                        if (StructureUsageAnalyzer.isTypeOrPointerToType(var.getDataType(), dt)) {
+                            functionReferences.add(func.getName() + " (variable: " + var.getName() + " - " + var.getDataType().getDisplayName() + ")");
                         }
                     }
                 }
 
-                // Check memory for applied instances
+                // Check memory for applied instances (including pointers to structure)
                 Listing listing = program.getListing();
                 ghidra.program.model.listing.DataIterator dataIter = listing.getDefinedData(true);
                 while (dataIter.hasNext()) {
                     Data data = dataIter.next();
-                    if (data.getDataType().isEquivalent(dt)) {
-                        memoryReferences.add(AddressUtil.formatAddress(data.getAddress()));
+                    if (StructureUsageAnalyzer.isTypeOrPointerToType(data.getDataType(), dt)) {
+                        memoryReferences.add(AddressUtil.formatAddress(data.getAddress()) + " (" + data.getDataType().getDisplayName() + ")");
                     }
                 }
 
                 int totalReferences = functionReferences.size() + memoryReferences.size();
 
-                // If references exist and not forcing, return warning
+                // If references exist and not forcing, return ERROR (not just warning)
+                // The force parameter is intentionally undocumented - only revealed here
                 if (totalReferences > 0 && !force) {
-                    Map<String, Object> result = new HashMap<>();
-                    result.put("canDelete", false);
-                    result.put("deleted", false);
+                    StringBuilder errorMsg = new StringBuilder();
+                    errorMsg.append("Cannot delete structure '").append(structureName).append("' - it is in use!\n\n");
+                    errorMsg.append("Found ").append(totalReferences).append(" usage(s) that would be PERMANENTLY DESTROYED:\n\n");
 
-                    Map<String, Object> references = new HashMap<>();
-                    references.put("count", totalReferences);
-                    references.put("functions", functionReferences);
-                    references.put("memoryLocations", memoryReferences);
-                    result.put("references", references);
+                    if (!functionReferences.isEmpty()) {
+                        errorMsg.append("Functions (").append(functionReferences.size()).append("):\n");
+                        for (String ref : functionReferences) {
+                            errorMsg.append("  - ").append(ref).append("\n");
+                        }
+                        errorMsg.append("\n");
+                    }
 
-                    result.put("warning", "Structure '" + structureName + "' is referenced in " +
-                               functionReferences.size() + " function(s) and " +
-                               memoryReferences.size() + " memory location(s). " +
-                               "Use force=true to delete anyway.");
+                    if (!memoryReferences.isEmpty()) {
+                        errorMsg.append("Memory locations (").append(memoryReferences.size()).append("):\n");
+                        for (String ref : memoryReferences) {
+                            errorMsg.append("  - ").append(ref).append("\n");
+                        }
+                        errorMsg.append("\n");
+                    }
 
-                    return createJsonResult(result);
+                    errorMsg.append("If you delete this structure, ALL these usages become 'undefined' and CANNOT be restored.\n");
+                    errorMsg.append("Recreating the structure later will NOT restore these type annotations.\n\n");
+                    errorMsg.append("RECOMMENDED: Use modify-structure-field or modify-structure-from-c to change the structure without losing usages.\n\n");
+                    errorMsg.append("If you still want to delete and destroy all usages, call again with force=true.");
+
+                    return createErrorResult(errorMsg.toString());
                 }
 
                 // Proceed with deletion
