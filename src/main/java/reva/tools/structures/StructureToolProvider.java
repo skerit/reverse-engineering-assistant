@@ -94,7 +94,9 @@ public class StructureToolProvider extends AbstractToolProvider {
         McpSchema.Tool tool = McpSchema.Tool.builder()
             .name("parse-c-structure")
             .title("Parse C Structure")
-            .description("Parse and create structures from C-style definitions")
+            .description("Create a NEW structure from a C-style definition. " +
+                         "If a structure with the same name already exists, it will be REPLACED (which may lose usages). " +
+                         "To update an existing structure while PRESERVING all function signatures and variable types, use modify-structure-from-c instead.")
             .inputSchema(createSchema(properties, required))
             .build();
 
@@ -632,10 +634,11 @@ public class StructureToolProvider extends AbstractToolProvider {
         McpSchema.Tool tool = McpSchema.Tool.builder()
             .name("modify-structure-from-c")
             .title("Modify Structure from C")
-            .description("Modify an existing structure using a C-style definition. " +
-                         "The structure name must match an existing structure. " +
-                         "Fields will be added, modified, or removed to match the definition. " +
-                         "Best practice: Read the structure with get-structure-info before modifying to understand the current layout.")
+            .description("Update an existing structure using a C-style definition while PRESERVING all references. " +
+                         "This is the SAFE way to change a structure's layout - all function parameters, return types, " +
+                         "variables, and memory annotations that use this structure will remain intact. " +
+                         "The structure name in the C definition must match an existing structure. " +
+                         "Use get-structure-info first to see the current layout.")
             .inputSchema(createSchema(properties, required))
             .build();
 
