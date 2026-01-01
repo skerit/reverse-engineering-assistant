@@ -67,7 +67,7 @@ public class StructureToolProvider extends AbstractToolProvider {
         registerCreateStructureTool();
         registerAddStructureFieldTool();
         registerModifyStructureFieldTool();
-        registerModifyStructureFromCTool();
+        // Note: modify-structure-from-c was consolidated into parse-c-structure
         registerGetStructureInfoTool();
         registerListStructuresTool();
         registerApplyStructureTool();
@@ -79,14 +79,17 @@ public class StructureToolProvider extends AbstractToolProvider {
     }
 
     /**
-     * Register tool to parse C-style structure definitions
+     * Register tool to parse C-style structure definitions.
+     * This tool handles both creation and modification:
+     * - If structure doesn't exist: creates it
+     * - If structure exists: modifies in-place, preserving all references
      */
     private void registerParseCStructureTool() {
         Map<String, Object> properties = new HashMap<>();
         properties.put("programPath", SchemaUtil.createStringProperty("Path of the program"));
         properties.put("cDefinition", SchemaUtil.createStringProperty("C-style structure definition"));
-        properties.put("category", SchemaUtil.createOptionalStringProperty("Category path (default: /)"));
-        
+        properties.put("category", SchemaUtil.createOptionalStringProperty("Category path for new structures (default: /)"));
+
         List<String> required = new ArrayList<>();
         required.add("programPath");
         required.add("cDefinition");
@@ -94,47 +97,108 @@ public class StructureToolProvider extends AbstractToolProvider {
         McpSchema.Tool tool = McpSchema.Tool.builder()
             .name("parse-c-structure")
             .title("Parse C Structure")
-            .description("Create a NEW structure from a C-style definition. " +
-                         "If a structure with the same name already exists, it will be REPLACED (which may lose usages). " +
-                         "To update an existing structure while PRESERVING all function signatures and variable types, use modify-structure-from-c instead.")
+            .description("Create or update a structure from a C-style definition. " +
+                         "If the structure already exists, it will be modified IN-PLACE, preserving all " +
+                         "function signatures, variable types, and memory annotations that reference it. " +
+                         "If the structure doesn't exist, a new one will be created.")
             .inputSchema(createSchema(properties, required))
             .build();
 
         registerTool(tool, (exchange, request) -> {
             try {
-                // Get program and parameters using helper methods
                 Program program = getProgramFromArgs(request);
                 String cDefinition = getString(request, "cDefinition");
                 String category = getOptionalString(request, "category", "/");
 
                 DataTypeManager dtm = program.getDataTypeManager();
-                CParser parser = new CParser(dtm);
-                
+
+                // First, parse the C definition to get the structure name
+                DataType parsedDt;
+                try {
+                    CParser parser = new CParser(dtm);
+                    parsedDt = parser.parse(cDefinition);
+                } catch (Exception e) {
+                    return createErrorResult("Failed to parse C definition: " + e.getMessage());
+                }
+
+                if (parsedDt == null) {
+                    return createErrorResult("Failed to parse structure definition");
+                }
+
+                if (!(parsedDt instanceof Structure)) {
+                    return createErrorResult("Parsed definition is not a structure");
+                }
+
+                Structure parsedStruct = (Structure) parsedDt;
+                String structureName = parsedStruct.getName();
+
+                // Check if structure already exists
+                DataType existingDt = findDataTypeByName(dtm, structureName);
+
                 int txId = program.startTransaction("Parse C Structure");
                 try {
-                    DataType dt = parser.parse(cDefinition);
-                    if (dt == null) {
-                        throw new Exception("Failed to parse structure definition");
+                    Structure resultStruct;
+                    String action;
+
+                    if (existingDt != null && existingDt instanceof Structure) {
+                        // MODIFY existing structure in-place (preserves references)
+                        Structure existingStruct = (Structure) existingDt;
+
+                        // Clear existing fields
+                        while (existingStruct.getNumComponents() > 0) {
+                            existingStruct.delete(0);
+                        }
+
+                        // Add all fields from parsed structure
+                        for (int i = 0; i < parsedStruct.getNumComponents(); i++) {
+                            DataTypeComponent comp = parsedStruct.getComponent(i);
+                            DataType fieldType = comp.getDataType();
+
+                            // Resolve the field type in the program's DTM
+                            fieldType = dtm.resolve(fieldType, DataTypeConflictHandler.DEFAULT_HANDLER);
+
+                            if (comp.isBitFieldComponent()) {
+                                BitFieldDataType bitfield = (BitFieldDataType) fieldType;
+                                existingStruct.addBitField(
+                                    bitfield.getBaseDataType(),
+                                    bitfield.getBitSize(),
+                                    comp.getFieldName(),
+                                    comp.getComment()
+                                );
+                            } else {
+                                existingStruct.add(fieldType, comp.getFieldName(), comp.getComment());
+                            }
+                        }
+
+                        // Copy properties
+                        if (parsedStruct.getDescription() != null) {
+                            existingStruct.setDescription(parsedStruct.getDescription());
+                        }
+                        existingStruct.setPackingEnabled(parsedStruct.isPackingEnabled());
+
+                        resultStruct = existingStruct;
+                        action = "modified (references preserved)";
+                    } else {
+                        // CREATE new structure
+                        CategoryPath catPath = new CategoryPath(category);
+                        dtm.createCategory(catPath);
+
+                        DataType resolved = dtm.resolve(parsedDt, DataTypeConflictHandler.REPLACE_HANDLER);
+                        if (!(resolved instanceof Structure)) {
+                            throw new Exception("Resolved type is not a structure");
+                        }
+
+                        resultStruct = (Structure) resolved;
+                        action = "created";
                     }
 
-                    // Move to specified category
-                    CategoryPath catPath = new CategoryPath(category);
-                    Category cat = dtm.createCategory(catPath);
-                    
-                    // Resolve into the program's DTM
-                    DataType resolved = dtm.resolve(dt, DataTypeConflictHandler.REPLACE_HANDLER);
-                    if (cat != null && resolved.getCategoryPath() != catPath) {
-                        resolved.setName(resolved.getName());
-                        cat.moveDataType(resolved, DataTypeConflictHandler.REPLACE_HANDLER);
-                    }
-                    
                     program.endTransaction(txId, true);
-                    
-                    // Return structure info
-                    Map<String, Object> result = createStructureInfo(resolved);
-                    result.put("message", "Successfully created structure: " + resolved.getName());
+
+                    Map<String, Object> result = createDetailedStructureInfo(resultStruct);
+                    result.put("message", "Successfully " + action + " structure: " + structureName);
+                    result.put("action", action.contains("modified") ? "modified" : "created");
                     return createJsonResult(result);
-                    
+
                 } catch (Exception e) {
                     program.endTransaction(txId, false);
                     Msg.error(this, "Failed to parse C structure", e);
@@ -612,126 +676,6 @@ public class StructureToolProvider extends AbstractToolProvider {
                     program.endTransaction(txId, false);
                     Msg.error(this, "Failed to modify field", e);
                     return createErrorResult("Failed to modify field: " + e.getMessage());
-                }
-            } catch (Exception e) {
-                return createErrorResult("Error: " + e.getMessage());
-            }
-        });
-    }
-
-    /**
-     * Register tool to modify a structure using a C definition
-     */
-    private void registerModifyStructureFromCTool() {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("programPath", SchemaUtil.createStringProperty("Path of the program"));
-        properties.put("cDefinition", SchemaUtil.createStringProperty("Complete C structure definition with modifications"));
-
-        List<String> required = new ArrayList<>();
-        required.add("programPath");
-        required.add("cDefinition");
-
-        McpSchema.Tool tool = McpSchema.Tool.builder()
-            .name("modify-structure-from-c")
-            .title("Modify Structure from C")
-            .description("Update an existing structure using a C-style definition while PRESERVING all references. " +
-                         "This is the SAFE way to change a structure's layout - all function parameters, return types, " +
-                         "variables, and memory annotations that use this structure will remain intact. " +
-                         "The structure name in the C definition must match an existing structure. " +
-                         "Use get-structure-info first to see the current layout.")
-            .inputSchema(createSchema(properties, required))
-            .build();
-
-        registerTool(tool, (exchange, request) -> {
-            try {
-                // Get program and parameters using helper methods
-                Program program = getProgramFromArgs(request);
-                String cDefinition = getString(request, "cDefinition");
-
-                DataTypeManager dtm = program.getDataTypeManager();
-
-                // Parse the C definition
-                DataType parsedDt = null;
-                try {
-                    CParser parser = new CParser(dtm);
-                    parsedDt = parser.parse(cDefinition);
-                } catch (Exception e) {
-                    return createErrorResult("Failed to parse C definition: " + e.getMessage());
-                }
-
-                if (parsedDt == null) {
-                    return createErrorResult("Failed to parse structure definition");
-                }
-
-                if (!(parsedDt instanceof Structure)) {
-                    return createErrorResult("Parsed definition is not a structure (unions not supported for modification)");
-                }
-
-                Structure parsedStruct = (Structure) parsedDt;
-                String structureName = parsedStruct.getName();
-
-                // Find existing structure
-                DataType existingDt = findDataTypeByName(dtm, structureName);
-                if (existingDt == null) {
-                    return createErrorResult("Structure not found: " + structureName + ". Use parse-c-structure to create a new structure instead.");
-                }
-
-                if (!(existingDt instanceof Structure)) {
-                    return createErrorResult("Existing data type is not a structure: " + structureName);
-                }
-
-                Structure existingStruct = (Structure) existingDt;
-
-                int txId = program.startTransaction("Modify Structure from C");
-                try {
-                    // Clear existing structure and rebuild from parsed definition
-                    // We'll do this by replacing all components
-
-                    // First, remove all existing components
-                    while (existingStruct.getNumComponents() > 0) {
-                        existingStruct.delete(0);
-                    }
-
-                    // Now add all components from the parsed structure
-                    for (int i = 0; i < parsedStruct.getNumComponents(); i++) {
-                        DataTypeComponent comp = parsedStruct.getComponent(i);
-                        DataType fieldType = comp.getDataType();
-
-                        // Resolve the field type in the program's DTM
-                        fieldType = dtm.resolve(fieldType, DataTypeConflictHandler.DEFAULT_HANDLER);
-
-                        if (comp.isBitFieldComponent()) {
-                            // Handle bitfield
-                            BitFieldDataType bitfield = (BitFieldDataType) fieldType;
-                            existingStruct.addBitField(
-                                bitfield.getBaseDataType(),
-                                bitfield.getBitSize(),
-                                comp.getFieldName(),
-                                comp.getComment()
-                            );
-                        } else {
-                            // Regular field
-                            existingStruct.add(fieldType, comp.getFieldName(), comp.getComment());
-                        }
-                    }
-
-                    // Copy other properties
-                    if (parsedStruct.getDescription() != null) {
-                        existingStruct.setDescription(parsedStruct.getDescription());
-                    }
-                    existingStruct.setPackingEnabled(parsedStruct.isPackingEnabled());
-
-                    program.endTransaction(txId, true);
-
-                    Map<String, Object> result = createDetailedStructureInfo(existingStruct);
-                    result.put("message", "Successfully modified structure from C definition: " + structureName);
-                    result.put("fieldsCount", existingStruct.getNumComponents());
-                    return createJsonResult(result);
-
-                } catch (Exception e) {
-                    program.endTransaction(txId, false);
-                    Msg.error(this, "Failed to modify structure from C", e);
-                    return createErrorResult("Failed to modify structure: " + e.getMessage());
                 }
             } catch (Exception e) {
                 return createErrorResult("Error: " + e.getMessage());
