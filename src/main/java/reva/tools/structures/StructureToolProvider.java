@@ -312,7 +312,9 @@ public class StructureToolProvider extends AbstractToolProvider {
         McpSchema.Tool tool = McpSchema.Tool.builder()
             .name("add-structure-field")
             .title("Add Structure Field")
-            .description("Add a field to an existing structure")
+            .description("Insert a NEW field into a structure. WARNING: This INSERTS at the offset, shifting subsequent fields and increasing structure size. " +
+                         "To convert existing undefined bytes to named fields WITHOUT changing structure size, use modify-structure-field instead. " +
+                         "If offset is omitted, appends to the end of the structure.")
             .inputSchema(createSchema(properties, required))
             .build();
 
@@ -439,8 +441,9 @@ public class StructureToolProvider extends AbstractToolProvider {
         McpSchema.Tool tool = McpSchema.Tool.builder()
             .name("modify-structure-field")
             .title("Modify Structure Field")
-            .description("Modify an existing field in a structure. Supports changing data type, name, comment, and length. " +
-                         "Identify the field by name OR offset. At least one modification parameter (newDataType, newFieldName, newComment, or newLength) is required.")
+            .description("Replace an existing field in-place. Use this to convert undefined bytes to named fields (e.g., change undefined at offset 12 to 'byte field_0x0C'). " +
+                         "This does NOT shift other fields or change structure size (unless allowSizeChange=true). " +
+                         "Identify the field by name OR offset. At least one modification (newDataType, newFieldName, newComment, or newLength) is required.")
             .inputSchema(createSchema(properties, required))
             .build();
 
